@@ -1,5 +1,5 @@
 const db = require("../db")
-
+const { Validator } = require('node-input-validator');
 // module.exports = {
    
 //     addStake: async (req, res) => {
@@ -73,7 +73,18 @@ const db = require("../db")
 module.exports.addStake = async (req, res) => {
     try {
         let { userId, amount, currencyId, stakingPlanId } = req.body;
-
+        const v = new Validator(req.body, {
+            userId: 'required|integer|min:1',
+            amount: 'required|decimal|min:10',
+            currencyId: 'required|integer|min:1',
+            stakingPlanId: 'required|integer|min:1'
+        });
+    
+        const matched = await v.check();
+        if (!matched) {
+            return res.status(400).json({ status: 0, errors: v.errors });
+        }
+    
         // 1. Get staking plan
         let plan = await db.promiseQuery("SELECT * FROM staking_plan WHERE id = ?", [stakingPlanId]);
         if (!plan.length) {

@@ -54,6 +54,7 @@
 // }
 const bcrypt = require("bcrypt");
 const db = require("../db");
+const { Validator } = require('node-input-validator');
 
 // const register = async (req, res) => {
 //     try {
@@ -143,6 +144,17 @@ const db = require("../db");
 module.exports.register = async (req, res) => {
     try {
         let { name, email, password, referredBy } = req.body;
+        const v = new Validator(req.body, {
+            name: 'required|string|minLength:3|maxLength:100',
+            email: 'required|email',
+            password: 'required|string|minLength:5',
+            referredBy: 'integer|min:1'
+        });
+    
+        const matched = await v.check();
+        if (!matched) {
+            return res.status(400).json({ status: 0, errors: v.errors });
+        }
 
         let referralChain = [];
         if (referredBy) {
