@@ -3,6 +3,6 @@ CREATE TABLE stake_history (
     user_id INT NOT NULL,
     currency_id INT NOT NULL,
     amount DECIMAL(20, 8) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    staking_plan_id INT NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

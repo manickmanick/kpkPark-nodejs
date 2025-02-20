@@ -2,8 +2,6 @@
 CREATE TABLE staking_plan (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    min_amount DECIMAL(18,8) NOT NULL,
-    max_amount DECIMAL(18,8) NOT NULL,
     duration_days INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
