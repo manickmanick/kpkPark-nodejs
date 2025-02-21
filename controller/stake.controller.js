@@ -1,5 +1,8 @@
 const db = require("../db")
 const { Validator } = require('node-input-validator');
+const moment = require("moment");
+var cron = require('node-cron');
+
 // module.exports = {
    
 //     addStake: async (req, res) => {
@@ -91,6 +94,16 @@ module.exports.addStake = async (req, res) => {
             return res.status(400).json({ status: 0, message: "Invalid staking plan" });
         }
 
+        const { duration_days, reward_percentage } = plan[0];
+        const endDate = moment().add(duration_days, "days").format("YYYY-MM-DD HH:mm:ss");
+        const reward = (amount * reward_percentage) / 100;
+
+        await db.promiseQuery(
+            `INSERT INTO staking (user_id, currency_id, amount, reward, end_date, staking_plan_id) 
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [userId, currencyId, amount, reward, endDate, stakingPlanId]
+        );
+
         // 2. Get user wallet balance
         let walletResult = await db.promiseQuery("SELECT balance FROM wallet WHERE user_id = ?", [userId]);
         if (!walletResult.length) {
@@ -148,3 +161,46 @@ module.exports.addStake = async (req, res) => {
     }
 };
 
+cron.schedule("0 0 * * * *", async () => {
+    console.log("Running staking reward cron job...");
+
+    try {
+        // 1️ Get all expired staking plans with pending rewards
+        const expiredStakes = await db.promiseQuery(`
+            SELECT s.id, s.user_id, s.currency_id, s.reward, w.balance
+            FROM staking s
+            JOIN wallet w ON s.user_id = w.user_id
+            WHERE s.reward_status = 'pending' 
+            AND s.end_date <= NOW()
+        `);
+
+        if (expiredStakes.length === 0) {
+            console.log("No expired staking plans found.");
+            return;
+        }
+
+        // 2️ Process each expired stake
+        for (let stake of expiredStakes) {
+            let balance = JSON.parse(stake.balance); // Convert to JSON
+            if (!balance[stake.currency_id]) {
+                balance[stake.currency_id] = { amount: 0, bonus: 0 };
+            }
+
+            // 3️ Add reward to user's wallet
+            balance[stake.currency_id].bonus += stake.reward;
+
+            // 4️ Update Wallet Balance
+            await db.promiseQuery(
+                "UPDATE wallet SET balance = ? WHERE user_id = ?",
+                [JSON.stringify(balance), stake.user_id]
+            );
+
+            // 5️ Mark reward as 'released'
+            await db.promiseQuery("UPDATE staking SET reward_status = 'released' WHERE id = ?", [stake.id]);
+
+            console.log(`Reward released for User ${stake.user_id}: ${stake.reward}`);
+        }
+    } catch (error) {
+        console.error("Error in staking reward cron job:", error);
+    }
+});
